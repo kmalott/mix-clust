@@ -4,6 +4,29 @@ from time import time
 import numpy as np
 from scipy.special import logsumexp
 
+###############################################################################
+# Base mixture shape checkers used by BaseMixture subclasses
+
+def _check_shape(param, param_shape, name):
+    """Validate the shape of the input parameter 'param'.
+
+    Parameters
+    ----------
+    param : array
+
+    param_shape : tuple
+
+    name : str
+    """
+    param = np.array(param)
+    if param.shape != param_shape:
+        raise ValueError(
+            "The parameter '%s' should have the shape of %s, but got %s"
+            % (name, param_shape, param.shape)
+        )
+
+###############################################################################
+# Base Mixture Class
 
 class BaseMixture(metaclass=ABCMeta):
     """
