@@ -397,7 +397,35 @@ class GaussianMixture(BaseMixture):
         y : array, shape (nsamples,)
             Component labels.
         """
-        # TODO
+        # TODO: implement check_is_fitted
+        # check_is_fitted(self)
+
+        if n_samples < 1:
+            raise ValueError(
+                "Invalid value for 'n_samples': %d . The sampling requires at "
+                "least one sample." % (self.n_components)
+            )
+
+        _, n_features = self.means_.shape
+        # TODO: implement check_random_state
+        # rng = check_random_state(self.random_state)
+        rng = self.random_state
+        n_samples_comp = rng.multinomial(n_samples, self.weights_)
+
+        X = np.vstack(
+            [
+                rng.multivariate_normal(mean, covariance, int(sample))
+                for (mean, covariance, sample) in zip(
+                    self.means_, self.covariances_, n_samples_comp
+                )
+            ]
+        )
+
+        y = np.concatenate(
+            [np.full(sample, j, dtype=int) for j, sample in enumerate(n_samples_comp)]
+        )
+
+        return (X, y)
 
     def _estimate_log_weights(self):
         """Estimate log-weights in EM algorithm, E[ log pi ] in VB algorithm.
