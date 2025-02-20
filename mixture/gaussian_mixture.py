@@ -170,7 +170,7 @@ class GaussianMixture(BaseMixture):
         weights_init=None,
         means_init=None,
         random_state=None,
-        # warm_start=False,
+        warm_start=False,
         verbose=0,
         verbose_interval=10,
     ):
@@ -182,7 +182,7 @@ class GaussianMixture(BaseMixture):
             n_init=n_init,
             init_params=init_params,
             random_state=random_state,
-            # warm_start=warm_start,
+            warm_start=warm_start,
             verbose=verbose,
             verbose_interval=verbose_interval,
         )
