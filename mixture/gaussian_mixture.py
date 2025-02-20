@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 
 from .base_mixture import BaseMixture, _check_shape
 
@@ -244,7 +245,85 @@ class GaussianMixture(BaseMixture):
         labels : array, shape (n_samples,)
             Component labels.
         """
-        # TODO
+        # TODO: implement validate data
+        # X = validate_data(self, X, dtype=[np.float64, np.float32], ensure_min_samples=2)
+        if X.shape[0] < self.n_components:
+            raise ValueError(
+                "Expected n_samples >= n_components "
+                f"but got n_components = {self.n_components}, "
+                f"n_samples = {X.shape[0]}"
+            )
+        self._check_parameters(X)
+
+        # if we enable warm_start, we will have a unique initialisation
+        do_init = not (self.warm_start and hasattr(self, "converged_"))
+        n_init = self.n_init if do_init else 1
+
+        max_lower_bound = -np.inf
+        self.converged_ = False
+        
+        # TODO: implement check random state
+        # random_state = check_random_state(self.random_state)
+        random_state = self.random_state
+
+        n_samples, _ = X.shape
+        for init in range(n_init):
+            self._print_verbose_msg_init_beg(init)
+
+            if do_init:
+                self._initialize_parameters(X, random_state)
+
+            lower_bound = -np.inf if do_init else self.lower_bound_
+
+            if self.max_iter == 0:
+                best_params = self._get_parameters()
+                best_n_iter = 0
+            else:
+                converged = False
+                for n_iter in range(1, self.max_iter + 1):
+                    prev_lower_bound = lower_bound
+
+                    log_prob_norm, log_resp = self._e_step(X)
+                    self._m_step(X, log_resp)
+                    lower_bound = log_prob_norm
+
+                    change = lower_bound - prev_lower_bound
+                    self._print_verbose_msg_iter_end(n_iter, change)
+
+                    if abs(change) < self.tol:
+                        converged = True
+                        break
+
+            self._print_verbose_msg_init_end(lower_bound, converged)
+
+            if lower_bound > max_lower_bound or max_lower_bound == -np.inf:
+                max_lower_bound = lower_bound
+                best_params = self._get_parameters()
+                best_n_iter = n_iter
+                self.converged_ = converged
+        
+        # Should only warn about convergence if max_iter > 0, otherwise
+        # the user is assumed to have used 0-iters initialization
+        # to get the initial means.
+        if not self.converged_ and self.max_iter > 0:
+            warnings.warn(
+                (
+                    "Best performing initialization did not converge. "
+                    "Try different init parameters, or increase max_iter, "
+                    "tol, or check for degenerate data."
+                ),
+            )
+
+        self._set_parameters(best_params)
+        self.n_iter_ = best_n_iter
+        self.lower_bound_ = max_lower_bound
+
+        # Always do a final e-step to guarantee that the labels returned by
+        # fit_predict(X) are always consistent with fit(X).predict(X)
+        # for any value of max_iter and tol (and any random_state).
+        _, log_resp = self._e_step(X)
+
+        return log_resp.argmax(axis=1)
 
     def _e_step(self, X):
         """E step.
