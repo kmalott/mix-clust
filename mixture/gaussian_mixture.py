@@ -126,6 +126,32 @@ def _estimate_gaussian_parameters(X, resp, reg_covar):
     covariances = _estimate_gaussian_covariances_full(resp, X, nk, means, reg_covar)
     return nk, means, covariances
 
+def _estimate_log_gaussian_prob(X, means, covariances):
+    """Estimate the log Gaussian probability.
+
+    Parameters
+    ----------
+    X : array-like of shape (n_samples, n_features)
+
+    means : array-like of shape (n_components, n_features)
+
+    covariances : array-like shape of (n_components, n_features, n_features)
+
+    Returns
+    -------
+    log_prob : array, shape (n_samples, n_components)
+    """
+    _, n_features = X.shape
+
+    log_det = np.log(np.linalg.det(covariances))
+    log_denom = 0.5 * (n_features * np.log(2 * np.pi) + log_det)
+
+    diff = (X - means)
+    numer = -0.5 * diff.T * np.linalg.inv(covariances) * diff
+
+    log_prob = numer - log_denom
+    return log_prob
+
 
 ###############################################################################
 # Guassian Mixture Class
@@ -316,7 +342,9 @@ class GaussianMixture(BaseMixture):
         -------
         log_prob : array, shape (n_samples, n_component)
         """
-        # TODO: calculate gaussian density
+        return _estimate_log_gaussian_prob(
+            X, self.means_, self.covariances_
+        )
 
     def bic(self, X):
         """Bayesian information criterion for the current model on the input X.
