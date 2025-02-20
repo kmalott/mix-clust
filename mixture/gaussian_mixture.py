@@ -95,7 +95,7 @@ def _estimate_gaussian_covariances_full(resp, X, nk, means, reg_covar):
         covariances[k].flat[:: n_features + 1] += reg_covar
     return covariances
 
-def _estimate_gaussian_parameters(X, resp, reg_covar, covariance_type):
+def _estimate_gaussian_parameters(X, resp, reg_covar):
     """Estimate the Gaussian distribution parameters.
 
     Parameters
@@ -220,19 +220,61 @@ class GaussianMixture(BaseMixture):
         """
         # TODO
 
-    def _e_step(self):
-        pass
+    def _e_step(self, X):
+        """E step.
 
-    def _m_step(self):
-        pass
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+
+        Returns
+        -------
+        log_prob_norm : float
+            Mean of the logarithms of the probabilities of each sample in X
+
+        log_responsibility : array, shape (n_samples, n_components)
+            Logarithm of the posterior probabilities (or responsibilities) of
+            the point of each sample in X.
+        """
+        log_prob_norm, log_resp = self._estimate_log_prob_resp(X)
+        return np.mean(log_prob_norm), log_resp
+
+    def _m_step(self, X, log_resp):
+        """M step.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+
+        log_resp : array-like of shape (n_samples, n_components)
+            Logarithm of the posterior probabilities (or responsibilities) of
+            the point of each sample in X.
+        """
+        self.weights_, self.means_, self.covariances_ = _estimate_gaussian_parameters(
+            X, np.exp(log_resp), self.reg_covar
+        )
+        self.weights_ /= self.weights_.sum()
 
     def _get_parameters(self):
-        # TODO
-        pass
+        return (
+            self.weights_,
+            self.means_,
+            self.covariances_,
+        )
 
     def _set_parameters(self, params):
-        # TODO
-        pass
+        (
+            self.weights_,
+            self.means_,
+            self.covariances_,
+        ) = params
+
+    def _n_parameters(self):
+        """Return the number of free parameters in the model."""
+        _, n_features = self.means_.shape
+        cov_params = self.n_components * n_features * (n_features + 1) / 2.0
+        mean_params = n_features * self.n_components
+        return int(cov_params + mean_params + self.n_components - 1)
 
     def sample(self, n_samples=1):
         """Generate random samples from the fitted Gaussian distribution.
@@ -259,7 +301,7 @@ class GaussianMixture(BaseMixture):
         -------
         log_weight : array, shape (n_components, )
         """
-        # TODO
+        return np.log(self.weights_)
 
     def _estimate_log_prob(self, X):
         """Estimate the log-probabilities log P(X | Z).
@@ -274,4 +316,42 @@ class GaussianMixture(BaseMixture):
         -------
         log_prob : array, shape (n_samples, n_component)
         """
-        # TODO
+        # TODO: calculate gaussian density
+
+    def bic(self, X):
+        """Bayesian information criterion for the current model on the input X.
+
+        You can refer to this :ref:`mathematical section <aic_bic>` for more
+        details regarding the formulation of the BIC used.
+
+        Parameters
+        ----------
+        X : array of shape (n_samples, n_dimensions)
+            The input samples.
+
+        Returns
+        -------
+        bic : float
+            The lower the better.
+        """
+        return -2 * self.score(X) * X.shape[0] + self._n_parameters() * np.log(
+            X.shape[0]
+        )
+
+    def aic(self, X):
+        """Akaike information criterion for the current model on the input X.
+
+        You can refer to this :ref:`mathematical section <aic_bic>` for more
+        details regarding the formulation of the AIC used.
+
+        Parameters
+        ----------
+        X : array of shape (n_samples, n_dimensions)
+            The input samples.
+
+        Returns
+        -------
+        aic : float
+            The lower the better.
+        """
+        return -2 * self.score(X) * X.shape[0] + 2 * self._n_parameters()
