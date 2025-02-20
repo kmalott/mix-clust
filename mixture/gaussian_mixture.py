@@ -1,4 +1,6 @@
 import numpy as np
+from scipy.stats import multivariate_normal
+
 import warnings
 
 from .base_mixture import BaseMixture, _check_shape
@@ -142,15 +144,13 @@ def _estimate_log_gaussian_prob(X, means, covariances):
     -------
     log_prob : array, shape (n_samples, n_components)
     """
-    _, n_features = X.shape
+    n_samples, _ = X.shape
+    n_components, _ = means.shape
 
-    log_det = np.log(np.linalg.det(covariances))
-    log_denom = 0.5 * (n_features * np.log(2 * np.pi) + log_det)
+    log_prob = np.zeros((n_samples, n_components))
+    for k in range(n_components):
+        log_prob[:,k] = multivariate_normal.pdf(X, means[k,:], covariances[k,:,:]).T
 
-    diff = (X - means)
-    numer = -0.5 * diff.T * np.linalg.inv(covariances) * diff
-
-    log_prob = numer - log_denom
     return log_prob
 
 
