@@ -169,7 +169,6 @@ class GaussianMixture(BaseMixture):
         init_params="kmeans",
         weights_init=None,
         means_init=None,
-        # precisions_init=None,
         random_state=None,
         # warm_start=False,
         verbose=0,
@@ -190,7 +189,6 @@ class GaussianMixture(BaseMixture):
 
         self.weights_init = weights_init
         self.means_init = means_init
-        # self.precisions_init = precisions_init
 
     def _check_parameters(self, X):
         """Check the Gaussian mixture parameters are well defined."""
@@ -203,8 +201,6 @@ class GaussianMixture(BaseMixture):
             self.means_init = _check_means(
                 self.means_init, self.n_components, n_features
             )
-
-        # TODO: check precisions_init
 
     def _initialize(self, X, resp):
         """Initialize the model parameters of the derived class.
