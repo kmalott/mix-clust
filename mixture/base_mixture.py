@@ -2,6 +2,7 @@ from abc import abstractmethod, ABCMeta
 from time import time
 
 import numpy as np
+import sklearn as sk
 from scipy.special import logsumexp
 
 ###############################################################################
@@ -88,7 +89,23 @@ class BaseMixture(metaclass=ABCMeta):
                 n_samples, size=self.n_components, replace=False
             )
             resp[indices, np.arange(self.n_components)] = 1
-        #TODO: add k-means and other initializations
+        elif self.init_params == "k-means":
+            resp = np.zeros((n_samples, self.n_components))
+            label = (
+                sk.cluster.KMeans(
+                    n_clusters=self.n_components, n_init=1, random_state=random_state
+                )
+                .fit(X)
+                .labels_
+            )
+        elif self.init_params == "k-means++":
+            resp = np.zeros((n_samples, self.n_components))
+            _, indices = sk.cluster.kmeans_plusplus(
+                X,
+                self.n_components,
+                random_state=random_state,
+            )
+            resp[indices, np.arange(self.n_components)] = 1
 
         self._initialize(X, resp)
 
