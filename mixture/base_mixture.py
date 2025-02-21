@@ -42,7 +42,7 @@ class BaseMixture(metaclass=ABCMeta):
             n_init, 
             init_params, 
             random_state, 
-            # warm_start, 
+            warm_start, 
             verbose, 
             verbose_interval,
     ):
@@ -52,7 +52,7 @@ class BaseMixture(metaclass=ABCMeta):
         self.n_init = n_init
         self.init_params = init_params
         self.random_state = random_state
-        # self.warm_start = warm_start
+        self.warm_start = warm_start
         self.verbose = verbose
         self.verbose_interval = verbose_interval
 
