@@ -2,8 +2,9 @@ from abc import abstractmethod, ABCMeta
 from time import time
 
 import numpy as np
-import sklearn as sk
-from scipy.special import logsumexp
+# import sklearn as sk
+# from sklearn.cluster import KMeans, kmeans_plusplus
+# from scipy.special import logsumexp
 
 ###############################################################################
 # Base mixture shape checkers used by BaseMixture subclasses
@@ -89,23 +90,23 @@ class BaseMixture(metaclass=ABCMeta):
                 n_samples, size=self.n_components, replace=False
             )
             resp[indices, np.arange(self.n_components)] = 1
-        elif self.init_params == "k-means":
-            resp = np.zeros((n_samples, self.n_components))
-            label = (
-                sk.cluster.KMeans(
-                    n_clusters=self.n_components, n_init=1, random_state=random_state
-                )
-                .fit(X)
-                .labels_
-            )
-        elif self.init_params == "k-means++":
-            resp = np.zeros((n_samples, self.n_components))
-            _, indices = sk.cluster.kmeans_plusplus(
-                X,
-                self.n_components,
-                random_state=random_state,
-            )
-            resp[indices, np.arange(self.n_components)] = 1
+        # elif self.init_params == "k-means":
+        #     resp = np.zeros((n_samples, self.n_components))
+        #     label = (
+        #         KMeans(
+        #             n_clusters=self.n_components, n_init=1, random_state=random_state
+        #         )
+        #         .fit(X)
+        #         .labels_
+        #     )
+        # elif self.init_params == "k-means++":
+        #     resp = np.zeros((n_samples, self.n_components))
+        #     _, indices = kmeans_plusplus(
+        #         X,
+        #         self.n_components,
+        #         random_state=random_state,
+        #     )
+        #     resp[indices, np.arange(self.n_components)] = 1
 
         self._initialize(X, resp)
 
@@ -188,7 +189,8 @@ class BaseMixture(metaclass=ABCMeta):
         # check_is_fitted(self)
         # X = validate_data(self, X, reset=False)
 
-        return logsumexp(self._estimate_weighted_log_prob(X), axis=1)
+        # return logsumexp(self._estimate_weighted_log_prob(X), axis=1)
+        return np.log(np.sum(np.exp(self._estimate_weighted_log_prob(X), axis=1)))
     
     def score(self, X, y=None):
         """Compute the per-sample average log-likelihood of the given data X.
@@ -326,7 +328,8 @@ class BaseMixture(metaclass=ABCMeta):
             logarithm of the responsibilities
         """
         weighted_log_prob = self._estimate_weighted_log_prob(X)
-        log_prob_norm = logsumexp(weighted_log_prob, axis=1)
+        # log_prob_norm = logsumexp(weighted_log_prob, axis=1)
+        log_prob_norm = np.log(np.sum(np.exp(weighted_log_prob, axis=1)))
         with np.errstate(under="ignore"):
             # ignore underflow
             log_resp = weighted_log_prob - log_prob_norm[:, np.newaxis]

@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.stats import multivariate_normal
+# from scipy.stats import multivariate_normal
 
 import warnings
 
@@ -144,12 +144,16 @@ def _estimate_log_gaussian_prob(X, means, covariances):
     -------
     log_prob : array, shape (n_samples, n_components)
     """
-    n_samples, _ = X.shape
+    n_samples, n_features = X.shape
     n_components, _ = means.shape
 
     log_prob = np.zeros((n_samples, n_components))
     for k in range(n_components):
-        log_prob[:,k] = multivariate_normal.pdf(X, means[k,:], covariances[k,:,:]).T
+        # log_prob[:,k] = multivariate_normal.pdf(X, means[k,:], covariances[k,:,:]).T
+        diff = X - means[k:]
+        num = np.exp(0.5*(diff.T @ np.linalg.inv(covariances[k,:,:]) @ diff))
+        denom = np.sqrt((2*np.pi)**(n_features) * np.linalg.det(covariances[k,:,:]))
+        log_prob[:,k] = np.log(num / denom)
 
     return log_prob
 
@@ -177,7 +181,6 @@ class GaussianMixture(BaseMixture):
         super().__init__(
             n_components=n_components,
             tol=tol,
-            reg_covar=reg_covar,
             max_iter=max_iter,
             n_init=n_init,
             init_params=init_params,
@@ -186,7 +189,7 @@ class GaussianMixture(BaseMixture):
             verbose=verbose,
             verbose_interval=verbose_interval,
         )
-
+        self.reg_covar=reg_covar,
         self.weights_init = weights_init
         self.means_init = means_init
 
