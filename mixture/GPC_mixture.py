@@ -69,6 +69,269 @@ def _check_means(means, n_components, n_features):
 ###############################################################################
 # GPC mixture parameters estimators (used by the M-Step)
 
+def _estimate_gaussian_covariances_full(resp, X, nk, means, reg_covar):
+    """Estimate the full guassian covariance matrices per group (w_g).
+
+    Parameters
+    ----------
+    resp : array-like of shape (n_samples, n_components)
+
+    X : array-like of shape (n_samples, n_features)
+
+    nk : array-like of shape (n_components,)
+
+    means : array-like of shape (n_components, n_features)
+
+    reg_covar : float
+
+    Returns
+    -------
+    covariances : array, shape (n_components, n_features, n_features)
+        The covariance matrix of the current components.
+    """
+    n_components, n_features = means.shape
+    covariances = np.empty((n_components, n_features, n_features))
+    for k in range(n_components):
+        diff = X - means[k]
+        covariances[k] = np.dot(resp[:, k] * diff.T, diff)
+        covariances[k].flat[:: n_features + 1] += reg_covar
+    return covariances
+
+def _estimate_gaussian_covariances(resp, X, nk, means, reg_covar):
+    """Estimate the full gaussian covariance matrices (w).
+
+    Parameters
+    ----------
+    resp : array-like of shape (n_samples, n_components)
+
+    X : array-like of shape (n_samples, n_features)
+
+    nk : array-like of shape (n_components,)
+
+    means : array-like of shape (n_components, n_features)
+
+    reg_covar : float
+
+    Returns
+    -------
+    covariances : array, shape (n_components, n_features, n_features)
+        The covariance matrix of the current components.
+    """
+    n_components, n_features = means.shape
+    covariances = np.empty((n_components, n_features, n_features))
+    for k in range(n_components):
+        diff = X - means[k]
+        covariances[k] = np.dot(resp[:, k] * diff.T, diff)
+        covariances[k].flat[:: n_features + 1] += reg_covar
+    covariances = covariances.sum(axis=0)
+    return covariances
+
+def _estimate_covariances(resp, X, nk, means, reg_covar, covariance_type):
+    """Estimate the covariance matrices.
+
+    Parameters
+    ----------
+    resp : array-like of shape (n_samples, n_components)
+
+    X : array-like of shape (n_samples, n_features)
+
+    nk : array-like of shape (n_components,)
+
+    means : array-like of shape (n_components, n_features)
+
+    reg_covar : float
+
+    covariance_type : string 
+
+    Returns
+    -------
+    covariances : array, shape (n_components, n_features, n_features)
+        The covariance matrix of the current components.
+    """
+    covariances = None
+    W_g = _estimate_gaussian_covariances_full(resp, X, nk, means, reg_covar)
+    if covariance_type == "VEE":
+        covariances = _estimate_VEE_covariances(X, W_g, nk)
+    elif covariance_type == "EVE":
+        covariances = _estimate_EVE_covariances()
+    elif covariance_type == "VVE":
+        covariances = _estimate_VVE_covariances()
+    elif covariance_type == "EEV":
+        covariances = _estimate_EEV_covariances(X, W_g)
+    elif covariance_type == "VEV":
+        covariances = _estimate_VEV_covariances(X, W_g, nk)
+    elif covariance_type == "EVV":
+        covariances = _estimate_EVV_covariances(X, W_g)
+    elif covariance_type == "VVV":
+        covariances = _estimate_VVV_covariances(W_g, nk)
+    elif covariance_type == "VEI":
+        covariances = _estimate_VEI_covariances(W_g, nk)
+    elif covariance_type == "EVI":
+        covariances = _estimate_EVI_covariances(X, W_g)
+    elif covariance_type == "VVI":
+        covariances = _estimate_VVI_covariances(W_g, nk)
+    elif covariance_type == "VII":
+        covariances = _estimate_VII_covariances(W_g, nk)
+    W = _estimate_gaussian_covariances(resp, X, nk, means, reg_covar)
+    if covariance_type == "EEE":
+        covariances = _estimate_EEE_covariances(X, W)
+    elif covariance_type == "EEI":
+        covariances = _estimate_EEI_covariances(X, W)
+    elif covariance_type == "EII":
+        covariances = _estimate_EII_covariances(X, W)
+
+    # TODO: duplicate covariances along group dimension
+    return covariances
+
+def _estimate_EEE_covariances(X,W):
+    # TODO: add description 
+    n_samples, _ = X.shape
+    covariances = W / n_samples
+    return covariances
+
+def _estimate_VEE_covariances(X, W_g, nk):
+    n_samples, n_features = X.shape
+    n_components = nk.shape
+    # TODO: add initial estimate of C
+    C = np.zeros((n_features, n_features))
+    lambda_g = np.zeros((n_components))
+    # TODO: add iterative loop
+    for k in range(0, n_components):
+        lambda_g[k] = np.linalg.trace(W_g[k,:,:] @ np.linalg.inv(C)) / (n_features*nk[k])
+        num += W_g[k] / lambda_g[k]
+    denom = np.linalg.det(num) ** (1/n_features)
+    C = num / denom
+    # After loop
+    # covariances = np.zeros((n_components, n_features, n_features))
+    covariances = lambda_g * np.tile(C, (n_components, 1, 1))
+    return covariances
+
+def _estimate_EVE_covariances():
+    pass
+
+def _estimate_VVE_covariances():
+    pass
+
+def _estimate_EEV_covariances(X, W_g):
+    n_components, _, _ = W_g.shape
+    n_samples, n_features = X.shape
+    omega = np.zeros((n_components, n_features, n_features))
+    L = np.zeros((n_components, n_features, n_features))
+    covariances = np.zeros((n_components, n_features, n_features))
+    omega_sum = np.zeros((n_features, n_features))
+    for k in range(0, n_components):
+        eigenval, L[k,:,:] = np.linalg.eigh(W_g[k,:,:])
+        omega[k,:,:] = np.diag(eigenval)
+        omega_sum += omega[k,:,:]
+    A = omega_sum / np.linalg.det(omega_sum)**(1/n_features)
+    Lambda = np.linalg.det(omega_sum)**(1/n_features) / n_samples
+    for k in range(0, n_components):
+        covariances[k,:,:] = Lambda * (L[k,:,:] @ A @ L[k,:,:].T)
+    return covariances
+
+def _estimate_VEV_covariances(X, W_g, nk):
+    n_components, _, _ = W_g.shape
+    n_samples, n_features = X.shape
+    omega = np.zeros((n_components, n_features, n_features))
+    L = np.zeros((n_components, n_features, n_features))
+    covariances = np.zeros((n_components, n_features, n_features))
+    omega_sum = np.zeros((n_features, n_features))
+    lambda_g = np.zeros((n_components))
+    # TODO: better initialization for A
+    A = np.zeros((n_components, n_features, n_features))
+    # TODO: create iterative loop
+    for k in range(0, n_components):
+        eigenval, L[k,:,:] = np.linalg.eigh(W_g[k,:,:])
+        omega[k,:,:] = np.diag(eigenval)
+        lambda_g[k] = np.trace(W_g[k,:,:] @ L[k,:,:] @ np.linalg.inv(A) @ L[k,:,:].T) / (n_features*nk[k])
+        omega_sum += (1/lambda_g[k])*omega[k,:,:]
+    A = omega_sum / np.linalg.det(omega_sum)**(1/n_features)
+    # After loop
+    for k in range(0, n_components):
+        covariances[k,:,:] = lambda_g[k] * (L[k,:,:] @ A @ L[k,:,:].T)
+    return covariances
+
+def _estimate_EVV_covariances(X, W_g):
+    n_samples, n_features = X.shape
+    n_components, _, _ = W_g.shape
+    C = np.zeros((n_components, n_features, n_features))
+    covariances = np.zeros((n_components, n_features, n_features))
+    Lambda = 0
+    for k in range(0, n_components):
+        C[k,:,:] = W_g[k,:,:] / np.linalg.det(W_g[k,:,:]) ** (1/n_features)
+        Lambda += np.linalg.det(W_g[k,:,:]) ** (1/n_features)
+    Lambda /= n_samples
+    for k in range(0, n_components):
+        covariances[k,:,:] = Lambda * C[k,:,:]
+    return covariances
+
+def _estimate_VVV_covariances(W_g, nk):
+    n_components, _, _ = W_g.shape
+    for k in range(0,n_components):
+        W_g[k,:,:] = (1/nk[k])*W_g[k,:,:]
+    return W_g
+
+def _estimate_EEI_covariances(X, W):
+    n_samples, n_features = X.shape
+    W_diag = np.diag(np.linalg.diagonal(W))
+    A = W_diag / (np.linalg.det(W_diag) ** (1/n_features))
+    Lambda = (np.linalg.det(W_diag) ** (1/n_features)) / n_samples
+    return Lambda * A
+
+def _estimate_VEI_covariances(W_g, nk):
+    n_components, n_features, _ = W_g.shape
+    # TODO: initial estimate of A
+    A = np.zeros((n_features, n_features))
+    lambda_g = np.zeros((n_components))
+    covariances = np.zeros((n_components, n_features, n_features))
+    # TODO: make iterative loop
+    W_sum = np.zeros((n_features, n_features))
+    for k in range(0, n_components):
+        lambda_g[k] = np.linalg.trace(W_g[k,:,:] @ np.linalg.inv(A)) / (n_features * nk[k])
+        W_sum += (1/lambda_g[k]) * W_g[k,:,:]
+    W_sum = np.diag(np.linalg.diagonal(W_sum))
+    A = W_sum / np.linalg.det(W_sum) ** (1/n_features)
+    # After loop
+    for k in range(0, n_components):
+        covariances[k,:,:] = lambda_g[k] * A
+    return covariances
+
+def _estimate_EVI_covariances(X, W_g):
+    n_samples, _ = X.shape
+    n_components, n_features, _ = W_g.shape
+    A_g = np.zeros((n_components, n_features, n_features))
+    W_sum = np.zeros((n_features, n_features))
+    covariances = np.zeros((n_components, n_features, n_features))
+    for k in range(0, n_components):
+        W_diag = np.diag(np.linalg.diagonal(W_g[k,:,:]))
+        denom = np.linalg.det(W_diag) ** (1/n_features)
+        A_g[k,:,:] = W_diag / denom
+        W_sum += denom
+    Lambda = W_sum / n_samples
+    for k in range(0, n_components):
+        covariances[k,:,:] = Lambda * A_g[k,:,:]
+    return covariances
+
+def _estimate_VVI_covariances(W_g, nk):
+    n_components, n_features, _ = W_g.shape
+    covariances = np.zeros((n_components, n_features, n_features))
+    for k in range(0, n_components):
+        W_diag = np.diag(np.linalg.diagonal(W_g[k,:,:]))
+        denom = np.linalg.det(W_diag) ** (1/n_features)
+        covariances[k,:,:] = (denom / nk[k]) * (W_diag / denom)
+    return covariances[k,:,:]
+
+def _estimate_EII_covariances(X, W):
+    n_samples, n_features = X.shape
+    return np.diag(np.linalg.trace(W) / (n_samples*n_features))
+
+def _estimate_VII_covariances(W_g, nk):
+    n_components, n_features, _ = W_g.shape
+    covariances = np.zeros((n_components, n_features, n_features))
+    for k in range(0, n_components):
+        covariances[k,:,:] = np.linalg.trace(W_g[k,:,:]) / (n_features*nk[k])
+    return covariances
+
 def _estimate_gpc_parameters(X, resp, reg_covar, covariance_type):
     """Estimate the Gaussian distribution parameters.
 
@@ -82,6 +345,9 @@ def _estimate_gpc_parameters(X, resp, reg_covar, covariance_type):
 
     reg_covar : float
         The regularization added to the diagonal of the covariance matrices.
+
+    covariance_type : string
+        Type of regularization placed on the covariance matrix. 
 
     Returns
     -------
@@ -97,8 +363,7 @@ def _estimate_gpc_parameters(X, resp, reg_covar, covariance_type):
     """
     nk = resp.sum(axis=0) + 10 * np.finfo(resp.dtype).eps
     means = np.dot(resp.T, X) / nk[:, np.newaxis]
-    # covariances = _estimate_gaussian_covariances_full(resp, X, nk, means, reg_covar)
-    covariances = ...
+    covariances = _estimate_covariances(resp, X, nk, means, reg_covar, covariance_type)
     return nk, means, covariances
 
 def _estimate_log_gaussian_prob(X, means, covariances):
@@ -190,7 +455,7 @@ class GPCMixture(BaseMixture):
         weights, means, covariances = None, None, None
         if resp is not None:
             weights, means, covariances = _estimate_gpc_parameters(
-                X, resp, self.reg_covar
+                X, resp, self.reg_covar, self.covariance_type
             )
             if self.weights_init is None:
                 weights /= n_samples
@@ -327,7 +592,7 @@ class GPCMixture(BaseMixture):
             the point of each sample in X.
         """
         self.weights_, self.means_, self.covariances_ = _estimate_gpc_parameters(
-            X, np.exp(log_resp), self.reg_covar
+            X, np.exp(log_resp), self.reg_covar, self.covariance_type
         )
         self.weights_ /= self.weights_.sum()
 
